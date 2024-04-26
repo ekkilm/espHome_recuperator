@@ -52,9 +52,9 @@ captive_portal:
 
 globals:
   - id: last_encoder_value
-    type: int
+    type: float
     initial_value: "8"
-    #restore_value: yes
+    restore_value: yes
 
   - id: fan_on
     type: bool
