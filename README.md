@@ -5,7 +5,7 @@
 ### Description
 The E-Extra EER series heat recovery unit is designed for constant air exchange in the room. The device is equipped with a regenerator that accumulates the thermal energy of the air leaving the room and heats the fresh air entering the room, thus ensuring minimal heat loss.
 
-In this project, the operation of the recuperator is controlled by an ESP32 microcontroller. The original circuit breaker of the device was replaced by an ESP32, and the "M200 2a (250v)" relay has been replaced by a semiconductor relay "ASR-06DA (3-32Vdc/24-280Vac 6A)", which controls the fan current power with PWM.
+In this project, the operation of the recuperator is controlled by an ESP32 microcontroller. The original circuit breaker of the device was replaced by an ESP32, and the "M200 2a (250v)" relay has been replaced by a solid state relay "ASR-06DA (3-32Vdc/24-280Vac 6A)", which controls the fan current power with PWM.
 
 The operation of the device can be controlled locally with the Rotator Encoder (ky-040).
 
