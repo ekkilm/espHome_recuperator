@@ -1,0 +1,196 @@
+substitutions:
+  friendly_name: "Ilmanvaihto"
+
+esphome:
+  name: esphome-web-29d080
+  on_boot:
+    priority: 250.0
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(fan_on);' # Update gloabal variable on boot
+          then:
+            - switch.turn_on: fan_control
+            - lambda: |- 
+                id(fan_on) = true;
+            - output.set_level:
+                id: pwmfan
+                level: !lambda 'return id(last_encoder_value) / 100.0;'
+            - number.set:  # Update Slider
+                id: fan_speed_number
+                value: !lambda 'return id(last_encoder_value);'
+          else:
+            - switch.turn_off: fan_control
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+#  level: DEBUG
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: <set_your_api_key>
+
+ota:
+  password: <set_your_ota_password>
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: !secret backup_wifi_ssid
+    password: !secret backup_wifi_password
+
+captive_portal:
+
+globals:
+  - id: last_encoder_value
+    type: int
+    initial_value: "8"
+    #restore_value: yes
+
+  - id: fan_on
+    type: bool
+    initial_value: "true"
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO23
+      mode: INPUT_PULLUP
+    id: "pwrBtn"
+    on_press:
+      then:
+        - lambda: |-
+            if (id(fan_on)) {
+              id(fan_control).turn_off();
+              id(fan_on) = false;
+            } else {
+              id(fan_control).turn_on();
+              id(pwmfan).set_level(id(last_encoder_value) / 100.0);
+              id(fan_on) = true;
+            }
+
+switch:
+  - platform: template
+    name: "Tuuletin kytkin"
+    id: fan_control
+    lambda: |-
+      return id(fan_on);
+    turn_on_action:
+      then:
+        - display.page.show: on_page
+        - component.update: sh1107_display
+
+        - lambda: |-
+            id(pwmfan).turn_on();
+            id(pwmfan).set_level(id(last_encoder_value) / 100.0);
+            id(fan_on) = true;
+
+    turn_off_action:
+      then:
+        - display.page.show: off_page
+        - component.update: sh1107_display
+
+        - lambda: |-
+            id(pwmfan).turn_off();
+            id(fan_on) = false;
+
+output:
+  - platform: ledc
+    pin: GPIO0
+    # Not quite sure which Hz is the correct frequency for the fan. Needs more research, but 4-5Hz feels pretty good at the moment.
+    frequency: 5hz
+    id: pwmfan
+    inverted: true
+
+sensor:
+  - platform: rotary_encoder
+    name: ${friendly_name} nopeus
+    id: ky040
+    pin_a: 4
+    pin_b: 14
+    resolution: 4
+    min_value: 8
+    max_value: 100
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(fan_on);'
+            then:
+              - output.set_level:
+                  id: pwmfan
+                  level: !lambda 'return x / 100.0;'
+              - lambda: |-
+                  //ESP_LOGD("encoder", "ENCODER: Current encoder value: %.1f", x);
+                  id(last_encoder_value) = x;
+              - number.set:
+                  id: fan_speed_number
+                  value: !lambda 'return x;'
+
+number:
+  - platform: template
+    name: "Tuulettimen nopeus"
+    id: fan_speed_number
+    mode: SLIDER
+    min_value: 8
+    max_value: 100
+    step: 4
+    on_value:
+      then:
+        - lambda: |-
+                  id(last_encoder_value) = x;
+        - if:
+            condition:
+              lambda: 'return id(fan_on);'
+            then:
+              - output.set_level:
+                  id: pwmfan
+                  level: !lambda 'return x / 100.0;'
+              - lambda: |-
+                  id(last_encoder_value) = x;
+    optimistic: true
+
+i2c:
+  sda: 33
+  scl: 32
+  scan: true
+  id: bus_a
+
+font:
+  - file: "fonts/Roboto-Light.ttf"
+    id: roboto
+    size: 14
+
+  - file: "fonts/Roboto-Light.ttf"
+    id: roboto_speed
+    size: 18
+
+display:
+  - platform: ssd1306_i2c
+    model: 'SH1107_128x64'
+    id: sh1107_display
+    rotation: 90
+    offset_x: 0
+    offset_y: 96
+    flip_x: false
+    flip_y: false
+    update_interval: 1s
+
+    pages: 
+      - id: on_page
+        lambda: |-
+          it.printf(0, 12, id(roboto), "Tuulettimen nopeus:");
+          it.printf(0, 28, id(roboto_speed), "%.1f%%", id(last_encoder_value) / 1.0);
+          //ESP_LOGD("encoder", "DISPLAY: Current encoder value: %.1f", id(last_encoder_value) / 1.0);
+      - id: off_page
+        lambda: |-
+            it.printf(10, 20, id(roboto_speed), "Sammutettu");
